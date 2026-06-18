@@ -21,6 +21,11 @@ def evaluator(example: QAExample, answer: str) -> JudgeResult:
         return JudgeResult(score=0, reason="The answer stopped at the birthplace city and never completed the second hop to the river.", missing_evidence=["Need to identify the river that flows through London."], spurious_claims=[])
     return JudgeResult(score=0, reason="The final answer selected the wrong second-hop entity.", missing_evidence=["Need to ground the answer in the second paragraph."], spurious_claims=[answer])
 
-def reflector(example: QAExample, attempt_id: int, judge: JudgeResult) -> ReflectionEntry:
+def reflector(example: QAExample, attempt_id: int, judge: JudgeResult, answer: str = "") -> ReflectionEntry:
     strategy = "Do the second hop explicitly: birthplace city -> river through that city." if example.qid == "hp2" else "Verify the final entity against the second paragraph before answering."
     return ReflectionEntry(attempt_id=attempt_id, failure_reason=judge.reason, lesson="A partial first-hop answer is not enough; the final answer must complete all hops.", next_strategy=strategy)
+
+def get_failure_mode(example: QAExample, judge: JudgeResult, final_score: int) -> str:
+    if final_score == 1:
+        return "none"
+    return FAILURE_MODE_BY_QID.get(example.qid, "wrong_final_answer")

@@ -20,11 +20,48 @@ def failure_breakdown(records: list[RunRecord]) -> dict:
     grouped: dict[str, Counter] = defaultdict(Counter)
     for record in records:
         grouped[record.agent_type][record.failure_mode] += 1
-    return {agent: dict(counter) for agent, counter in grouped.items()}
+    combined: Counter = Counter()
+    for counter in grouped.values():
+        combined.update(counter)
+    return {agent: dict(counter) for agent, counter in grouped.items()} | {"combined": dict(combined)}
+
+def _build_discussion(records: list[RunRecord], summary: dict) -> str:
+    react = summary.get("react", {})
+    reflexion = summary.get("reflexion", {})
+    delta = summary.get("delta_reflexion_minus_react", {})
+    react_wrong = [r for r in records if r.agent_type == "react" and not r.is_correct]
+    reflexion_fixed = [r for r in records if r.agent_type == "reflexion" and r.is_correct and r.attempts > 1]
+    failure_modes = failure_breakdown(records)
+
+    lines = [
+        "This benchmark compares ReAct (single attempt) against Reflexion (retry with reflection memory) on multi-hop QA.",
+        f"ReAct EM={react.get('em', 0):.2%} with avg {react.get('avg_attempts', 0)} attempts; "
+        f"Reflexion EM={reflexion.get('em', 0):.2%} with avg {reflexion.get('avg_attempts', 0)} attempts.",
+        f"Reflexion changed EM by {delta.get('em_abs', 0):+.4f} at the cost of "
+        f"+{delta.get('tokens_abs', 0)} tokens and +{delta.get('latency_abs', 0)} ms per question on average.",
+        f"ReAct failed on {len(react_wrong)} questions; Reflexion recovered {len(reflexion_fixed)} cases after reflection.",
+        "Common failure modes include incomplete_multi_hop (stopping at an intermediate entity), "
+        "entity_drift (wrong second-hop answer), and wrong_final_answer.",
+        f"Observed failure breakdown: {json.dumps(failure_modes)}.",
+        "Reflection memory helped when the evaluator identified a missing hop and the reflector supplied "
+        "a concrete next strategy. Remaining errors often come from ambiguous context or evaluator false negatives.",
+    ]
+    return " ".join(lines)
 
 def build_report(records: list[RunRecord], dataset_name: str, mode: str = "mock") -> ReportPayload:
     examples = [{"qid": r.qid, "agent_type": r.agent_type, "gold_answer": r.gold_answer, "predicted_answer": r.predicted_answer, "is_correct": r.is_correct, "attempts": r.attempts, "failure_mode": r.failure_mode, "reflection_count": len(r.reflections)} for r in records]
-    return ReportPayload(meta={"dataset": dataset_name, "mode": mode, "num_records": len(records), "agents": sorted({r.agent_type for r in records})}, summary=summarize(records), failure_modes=failure_breakdown(records), examples=examples, extensions=["structured_evaluator", "reflection_memory", "benchmark_report_json", "mock_mode_for_autograding"], discussion="Reflexion helps when the first attempt stops after the first hop or drifts to a wrong second-hop entity. The tradeoff is higher attempts, token cost, and latency. In a real report, students should explain when the reflection memory was useful, which failure modes remained, and whether evaluator quality limited gains.")
+    summary = summarize(records)
+    extensions = ["structured_evaluator", "reflection_memory", "benchmark_report_json", "mock_mode_for_autograding"]
+    if mode == "llm":
+        extensions.append("llm_runtime_deepseek")
+    return ReportPayload(
+        meta={"dataset": dataset_name, "mode": mode, "num_records": len(records), "agents": sorted({r.agent_type for r in records})},
+        summary=summary,
+        failure_modes=failure_breakdown(records),
+        examples=examples,
+        extensions=extensions,
+        discussion=_build_discussion(records, summary),
+    )
 
 def save_report(report: ReportPayload, out_dir: str | Path) -> tuple[Path, Path]:
     out_dir = Path(out_dir)

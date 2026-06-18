@@ -1,25 +1,38 @@
 from __future__ import annotations
 import json
+import os
 from pathlib import Path
 import typer
 from rich import print
-from src.reflexion_lab.agents import ReActAgent, ReflexionAgent
 from src.reflexion_lab.reporting import build_report, save_report
 from src.reflexion_lab.utils import load_dataset, save_jsonl
 app = typer.Typer(add_completion=False)
 
 @app.command()
-def main(dataset: str = "data/hotpot_mini.json", out_dir: str = "outputs/sample_run", reflexion_attempts: int = 3) -> None:
+def main(
+    dataset: str = "data/hotpot_mini.json",
+    out_dir: str = "outputs/sample_run",
+    reflexion_attempts: int = 3,
+    mode: str = typer.Option("llm", help="Runtime mode: llm or mock"),
+) -> None:
+    os.environ["REFLEXION_RUNTIME"] = mode
+    from src.reflexion_lab.agents import ReActAgent, ReflexionAgent
     examples = load_dataset(dataset)
     react = ReActAgent()
     reflexion = ReflexionAgent(max_attempts=reflexion_attempts)
-    react_records = [react.run(example) for example in examples]
-    reflexion_records = [reflexion.run(example) for example in examples]
+    react_records = []
+    for idx, example in enumerate(examples, start=1):
+        print(f"[react] {idx}/{len(examples)} {example.qid}")
+        react_records.append(react.run(example))
+    reflexion_records = []
+    for idx, example in enumerate(examples, start=1):
+        print(f"[reflexion] {idx}/{len(examples)} {example.qid}")
+        reflexion_records.append(reflexion.run(example))
     all_records = react_records + reflexion_records
     out_path = Path(out_dir)
     save_jsonl(out_path / "react_runs.jsonl", react_records)
     save_jsonl(out_path / "reflexion_runs.jsonl", reflexion_records)
-    report = build_report(all_records, dataset_name=Path(dataset).name, mode="mock")
+    report = build_report(all_records, dataset_name=Path(dataset).name, mode=mode)
     json_path, md_path = save_report(report, out_path)
     print(f"[green]Saved[/green] {json_path}")
     print(f"[green]Saved[/green] {md_path}")
