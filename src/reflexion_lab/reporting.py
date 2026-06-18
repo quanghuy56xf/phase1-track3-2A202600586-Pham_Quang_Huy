@@ -51,7 +51,13 @@ def _build_discussion(records: list[RunRecord], summary: dict) -> str:
 def build_report(records: list[RunRecord], dataset_name: str, mode: str = "mock") -> ReportPayload:
     examples = [{"qid": r.qid, "agent_type": r.agent_type, "gold_answer": r.gold_answer, "predicted_answer": r.predicted_answer, "is_correct": r.is_correct, "attempts": r.attempts, "failure_mode": r.failure_mode, "reflection_count": len(r.reflections)} for r in records]
     summary = summarize(records)
-    extensions = ["structured_evaluator", "reflection_memory", "benchmark_report_json", "mock_mode_for_autograding"]
+    extensions = [
+        "structured_evaluator",
+        "reflection_memory",
+        "adaptive_max_attempts",
+        "benchmark_report_json",
+        "mock_mode_for_autograding",
+    ]
     if mode == "llm":
         extensions.append("llm_runtime_deepseek")
     return ReportPayload(

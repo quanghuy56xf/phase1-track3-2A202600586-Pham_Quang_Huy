@@ -15,8 +15,8 @@ def _impl():
         from . import llm_runtime as runtime
     return runtime
 
-def actor_answer(example: QAExample, attempt_id: int, agent_type: str, reflection_memory: list[str]) -> str:
-    return _impl().actor_answer(example, attempt_id, agent_type, reflection_memory)
+def actor_answer(example: QAExample, attempt_id: int, agent_type: str, reflection_memory: list[str], previous_answers: list[str] | None = None) -> str:
+    return _impl().actor_answer(example, attempt_id, agent_type, reflection_memory, previous_answers)
 
 def evaluator(example: QAExample, answer: str) -> JudgeResult:
     return _impl().evaluator(example, answer)

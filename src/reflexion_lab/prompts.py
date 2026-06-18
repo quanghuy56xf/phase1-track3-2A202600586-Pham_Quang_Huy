@@ -5,7 +5,8 @@ Given a question and context paragraphs, find the answer by connecting informati
 Rules:
 - Read all context paragraphs carefully before answering.
 - For multi-hop questions, follow each hop step by step (entity A -> entity B -> final answer).
-- If reflection strategies from prior failed attempts are provided, apply them in your next answer.
+- For comparison questions, gather facts about BOTH entities before deciding.
+- If reflection memory or wrong-answer warnings are provided, apply them and choose a different answer.
 - Return ONLY the final short answer (entity name or phrase). No explanation."""
 
 EVALUATOR_SYSTEM = """You are an answer evaluator for multi-hop QA.
